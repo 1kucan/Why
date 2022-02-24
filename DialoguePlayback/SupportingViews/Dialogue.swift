@@ -51,9 +51,23 @@ struct Dialogue: View {
             .onAppear() {
                 ///
                 appData.messagePub()?
-                    .zip(deliveredPub).map { $0.0 }
-                    .delay(for: .seconds(R.preUtteranceDelay), scheduler: DispatchQueue.main)
-                    .zip(player.$isPlaying).compactMap { $0.1 == false ? $0.0 : nil }
+                    .zip(deliveredPub)
+                    .map(\.0)
+                    .zip(player.$isPlaying)
+                    .delay(for: .seconds(R.preUtteranceDelay), scheduler: RunLoop.main)
+                    .flatMap { val in
+                        Just(val)
+                            .tryMap { _ in
+                                guard val.1 == false else {
+                                    throw PlaybackErr()
+                                }
+                                return val.0
+                            }
+                            .catch { _ in
+                                Just(val.0)
+                            }
+                    }
+                    //.compactMap { $0.1 == false ? $0.0 : nil }
                     .sink {
                         feed.append($0)
                         utterance = AVSpeechUtterance(string: String($0.text.prefix(R.maxCharacters))) }
@@ -61,7 +75,10 @@ struct Dialogue: View {
                 ///
                 deliveredPub
                     .delay(for: .seconds(R.preUtteranceDelay), scheduler: RunLoop.main)
-                    .sink { utterance.map { player.speaker.speak($0) } }
+                    .sink {
+                        defer { utterance = nil }
+                        utterance.map { player.speaker.speak($0) }
+                    }
                     .store(in: &storage)
                 // To kick-off
                 deliveredPub.send()
@@ -69,6 +86,7 @@ struct Dialogue: View {
             }.padding(R.dialogueViewPadding)
         }
     }
+    struct PlaybackErr: Error {}
 }
 
 struct ContentView_Previews: PreviewProvider {
