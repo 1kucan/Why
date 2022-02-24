@@ -67,7 +67,6 @@ struct Dialogue: View {
                                 Just(val.0)
                             }
                     }
-                    //.compactMap { $0.1 == false ? $0.0 : nil }
                     .sink {
                         feed.append($0)
                         utterance = AVSpeechUtterance(string: String($0.text.prefix(R.maxCharacters))) }
